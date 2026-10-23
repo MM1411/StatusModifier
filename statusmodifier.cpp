@@ -13,7 +13,6 @@
 #include <sstream>
 
 #include "gameconfig.h"
-#include "khook_helpers.h"
 #include "playermanager.h"
 #include "recipientfilter.h"
 #include "utils.h"
@@ -37,23 +36,27 @@ PipeLayout g_HeaderLayout;
 // Will return null between map end & new map startup, null check if necessary!
 CGlobalVars* GetGlobals() { return g_pEngineServer2->GetServerGlobals(); }
 
-KHOOK_VIRTUAL(StartupServer, &INetworkServerService::StartupServer, g_pNetworkServerService, nullptr, Hook_StartupServer_Post);
-KHOOK_VIRTUAL(ClientConnect, &IServerGameClients::ClientConnect, g_pSource2GameClients, Hook_ClientConnect, nullptr);
-KHOOK_VIRTUAL(OnClientConnected, &IServerGameClients::OnClientConnected, g_pSource2GameClients, Hook_OnClientConnected, nullptr);
-KHOOK_VIRTUAL(ClientDisconnect, &IServerGameClients::ClientDisconnect, g_pSource2GameClients, nullptr, Hook_ClientDisconnect_Post);
+SH_DECL_HOOK3_void(INetworkServerService, StartupServer, SH_NOATTRIB, 0, const GameSessionConfiguration_t&, ISource2WorldSession*, const char*);
+SH_DECL_HOOK5_void(IServerGameClients, ClientDisconnect, SH_NOATTRIB, 0, CPlayerSlot, ENetworkDisconnectionReason, const char*, uint64, const char*);
+SH_DECL_HOOK6_void(IServerGameClients, OnClientConnected, SH_NOATTRIB, 0, CPlayerSlot, const char*, uint64, const char*, const char*, bool);
+SH_DECL_HOOK6(IServerGameClients, ClientConnect, SH_NOATTRIB, 0, bool, CPlayerSlot, const char*, uint64, const char*, bool, CBufferString*);
 
-KHOOK_MEMBER(FilterMessage, Detour_ServerSideClient_FilterMessage, nullptr);
+bool (*FilterMessage_t)(CServerSideClientBase* pClient, const CNetMessage* pMessage, INetChannel* pChannel) = nullptr;
+funchook_t* m_FilterMessageHook = nullptr;
 
-std::vector<CKHookBase*>& GetKHookList()
+void InitDetours()
 {
-    static std::vector<CKHookBase*> s_vecSigHooks;
-    return s_vecSigHooks;
-}
+    FilterMessage_t = reinterpret_cast<decltype(FilterMessage_t)>(g_GameConfig->ResolveSignature("FilterMessage"));
+    if (!FilterMessage_t)
+    {
+        g_bRequiredInitLoaded = false;
+        return;
+    }
 
-void InitKHooks()
-{
-    for (auto hook : GetKHookList())
-        hook->Configure();
+    m_FilterMessageHook = funchook_create();
+    funchook_prepare(m_FilterMessageHook, (void**)&FilterMessage_t, (void*)Detour_ServerSideClient_FilterMessage);
+    funchook_install(m_FilterMessageHook, 0);
+    ConMsg("Hooked FilterMessage at 0x%p\n", FilterMessage_t);
 }
 
 void InitModules()
@@ -85,7 +88,12 @@ bool StatusModifier::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen
         return false;
     }
 
-    InitKHooks();
+    SH_ADD_HOOK(INetworkServerService, StartupServer, g_pNetworkServerService, SH_STATIC(Hook_StartupServer_Post), true);
+    SH_ADD_HOOK(IServerGameClients, ClientDisconnect, g_pSource2GameClients, SH_STATIC(Hook_ClientDisconnect_Post), true);
+    SH_ADD_HOOK(IServerGameClients, OnClientConnected, g_pSource2GameClients, SH_STATIC(Hook_OnClientConnected), false);
+    SH_ADD_HOOK(IServerGameClients, ClientConnect, g_pSource2GameClients, SH_STATIC(Hook_ClientConnect), false);
+
+    InitDetours();
 
     if (!g_bRequiredInitLoaded)
     {
@@ -118,16 +126,28 @@ bool StatusModifier::Unload(char* error, size_t maxlen)
 {
     ConVar_Unregister();
 
+    SH_REMOVE_HOOK(INetworkServerService, StartupServer, g_pNetworkServerService, SH_STATIC(Hook_StartupServer_Post), true);
+    SH_REMOVE_HOOK(IServerGameClients, ClientDisconnect, g_pSource2GameClients, SH_STATIC(Hook_ClientDisconnect_Post), true);
+    SH_REMOVE_HOOK(IServerGameClients, OnClientConnected, g_pSource2GameClients, SH_STATIC(Hook_OnClientConnected), false);
+    SH_REMOVE_HOOK(IServerGameClients, ClientConnect, g_pSource2GameClients, SH_STATIC(Hook_ClientConnect), false);
+
+    if (m_FilterMessageHook)
+    {
+        funchook_uninstall(m_FilterMessageHook, 0);
+        funchook_destroy(m_FilterMessageHook);
+        m_FilterMessageHook = nullptr;
+    }
+
     if (g_PlayerManager) delete g_PlayerManager;
 
     return true;
 }
 
-KHook::Return<bool> Detour_ServerSideClient_FilterMessage(CServerSideClientBase* pClient, const CNetMessage* pMessage, INetChannel* pChannel)
+bool Detour_ServerSideClient_FilterMessage(CServerSideClientBase* pClient, const CNetMessage* pMessage, INetChannel* pChannel)
 {
     if (!pClient || !pMessage)
     {
-        return { KHook::Action::Ignore, false };
+        return FilterMessage_t(pClient, pMessage, pChannel);
     }
 
     int msgid = pMessage->GetNetMessage()->GetNetMessageInfo()->m_MessageId;
@@ -136,7 +156,7 @@ KHook::Return<bool> Detour_ServerSideClient_FilterMessage(CServerSideClientBase*
 
     if (msgid != clc_ServerStatus)
     {
-        return { KHook::Action::Ignore, false };
+        return FilterMessage_t(pClient, pMessage, pChannel);
     }
 
     bool playerlist = false;
@@ -165,42 +185,35 @@ KHook::Return<bool> Detour_ServerSideClient_FilterMessage(CServerSideClientBase*
         buffer = CheckMessageVariables(message, -1, g_HeaderLayout);
         if (buffer.length() > 0) ClientPrint(slot, HUD_PRINTCONSOLE, buffer.c_str());
     }
-    return { KHook::Action::Supersede, true };
+    return true;
 }
 
-KHook::Return<void>
-Hook_StartupServer_Post(INetworkServerService* pThis, const GameSessionConfiguration_t& config, ISource2WorldSession* pSession, const char* pszMapName)
+void Hook_StartupServer_Post(const GameSessionConfiguration_t& config, ISource2WorldSession* pSession, const char* pszMapName)
 {
     g_pEntitySystem = GameEntitySystem();
     g_mExcludeSlots.clear();
-    return { KHook::Action::Ignore };
 }
 
-KHook::Return<bool> Hook_ClientConnect(
-    IServerGameClients* pThis, CPlayerSlot slot, const char* pszName, uint64 xuid, const char* pszNetworkID, bool unk1, CBufferString* pRejectReason)
+bool Hook_ClientConnect(CPlayerSlot slot, const char* pszName, uint64 xuid, const char* pszNetworkID, bool unk1, CBufferString* pRejectReason)
 {
     // Player is banned
-    if (!g_PlayerManager->OnClientConnected(slot, xuid, pszNetworkID)) return { KHook::Action::Ignore, false };
+    if (!g_PlayerManager->OnClientConnected(slot, xuid, pszNetworkID)) RETURN_META_VALUE(MRES_IGNORED, false);
 
-    return { KHook::Action::Ignore, true };
+    RETURN_META_VALUE(MRES_IGNORED, true);
 }
 
-KHook::Return<void> Hook_OnClientConnected(
-    IServerGameClients* pThis, CPlayerSlot slot, const char* pszName, uint64 xuid, const char* pszNetworkID, const char* pszAddress, bool bFakePlayer)
+void Hook_OnClientConnected(CPlayerSlot slot, const char* pszName, uint64 xuid, const char* pszNetworkID, const char* pszAddress, bool bFakePlayer)
 {
     static ConVarRefAbstract tv_name("tv_name");
     const char* pszTvName = tv_name.GetString().Get();
 
     // Ideally we would use CServerSideClient::IsHLTV().. but it doesn't work :(
     if (bFakePlayer && V_strcmp(pszName, pszTvName)) g_PlayerManager->OnBotConnected(slot);
-    return { KHook::Action::Ignore };
 }
 
-KHook::Return<void> Hook_ClientDisconnect_Post(
-    IServerGameClients* pThis, CPlayerSlot slot, ENetworkDisconnectionReason reason, const char* pszName, uint64 xuid, const char* pszNetworkID)
+void Hook_ClientDisconnect_Post(CPlayerSlot slot, ENetworkDisconnectionReason reason, const char* pszName, uint64 xuid, const char* pszNetworkID)
 {
     g_PlayerManager->OnClientDisconnect(slot);
-    return { KHook::Action::Ignore };
 }
 
 void LoadConfig()

@@ -2,7 +2,8 @@
 #define _INCLUDE_METAMOD_SOURCE_STUB_PLUGIN_H_
 
 #include <ISmmPlugin.h>
-#include <khook.hpp>
+#include <sh_vector.h>
+#include "funchook.h"
 #include "utlvector.h"
 #include "ehandle.h"
 #include <entity2/entitysystem.h>
@@ -38,15 +39,12 @@
 
 #define MAXPLAYERS 65
 
-KHook::Return<void> Hook_StartupServer_Post(INetworkServerService* pThis, const GameSessionConfiguration_t& config, ISource2WorldSession*, const char*);
-KHook::Return<bool> Hook_ClientConnect(
-    IServerGameClients* pThis, CPlayerSlot slot, const char* pszName, uint64 xuid, const char* pszNetworkID, bool unk1, CBufferString* pRejectReason);
-KHook::Return<void> Hook_OnClientConnected(
-    IServerGameClients* pThis, CPlayerSlot slot, const char* pszName, uint64 xuid, const char* pszNetworkID, const char* pszAddress, bool bFakePlayer);
-KHook::Return<void> Hook_ClientDisconnect_Post(
-    IServerGameClients* pThis, CPlayerSlot slot, ENetworkDisconnectionReason reason, const char* pszName, uint64 xuid, const char* pszNetworkID);
+void Hook_StartupServer_Post(const GameSessionConfiguration_t& config, ISource2WorldSession*, const char*);
+bool Hook_ClientConnect(CPlayerSlot slot, const char* pszName, uint64 xuid, const char* pszNetworkID, bool unk1, CBufferString* pRejectReason);
+void Hook_OnClientConnected(CPlayerSlot slot, const char* pszName, uint64 xuid, const char* pszNetworkID, const char* pszAddress, bool bFakePlayer);
+void Hook_ClientDisconnect_Post(CPlayerSlot slot, ENetworkDisconnectionReason reason, const char* pszName, uint64 xuid, const char* pszNetworkID);
 
-KHook::Return<bool> Detour_ServerSideClient_FilterMessage(CServerSideClientBase* pClient, const CNetMessage* pMessage, INetChannel* pChannel);
+bool Detour_ServerSideClient_FilterMessage(CServerSideClientBase* pClient, const CNetMessage* pMessage, INetChannel* pChannel);
 
 class StatusModifier final : public ISmmPlugin, public IMetamodListener
 {

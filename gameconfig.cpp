@@ -1,5 +1,4 @@
 #include "gameconfig.h"
-#include "khook.hpp"
 #undef snprintf
 #include "vendor/nlohmann/json.hpp"
 
@@ -218,7 +217,8 @@ void* CGameConfig::ResolveSignature(const char* name)
 
         if (!IsValidIDASignature(signature, bytes)) return nullptr;
 
-        address = KHook::LookupSignature((*module)->m_base, (*module)->m_size, signature);
+        SignatureIterator sigIt((*module)->m_base, (*module)->m_size, bytes.data(), bytes.size());
+        address = sigIt.FindNext(true);
     }
 
     if (!address)

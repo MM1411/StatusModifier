@@ -484,7 +484,7 @@ const char *PLUGIN_REVISION_COUNT = \"{revision_count}\";
       os.path.join(context.currentSourcePath),
       os.path.join(self.mms_root, 'core'),
       os.path.join(self.mms_root, 'core', 'sourcehook'),
-      os.path.join(self.mms_root, 'third_party', 'khook', 'include')
+      os.path.join(context.currentSourcePath, 'compat'),
     ]
 
     for other_sdk in self.sdk_manifests:

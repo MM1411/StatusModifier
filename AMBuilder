@@ -15,6 +15,7 @@ for sdk_target in MMSPlugin.sdk_targets:
   binary = MMSPlugin.HL2Library(builder, cxx, project, sdk)
 
   binary.compiler.cxxincludes += [
+    os.path.join(builder.currentSourcePath, 'vendor', 'funchook', 'include'),
     os.path.join(builder.sourcePath, 'public'),
     os.path.join(builder.sourcePath, 'include'),
     os.path.join(builder.sourcePath, '..', 'SchemaEntity'),
@@ -22,10 +23,16 @@ for sdk_target in MMSPlugin.sdk_targets:
   ]
 
   if binary.compiler.target.platform == 'linux':
+    binary.compiler.postlink += [
+      os.path.join(builder.sourcePath, 'vendor', 'funchook', 'lib', 'libfunchook.a'),
+      os.path.join(builder.sourcePath, 'vendor', 'funchook', 'lib', 'libdistorm.a'),
+    ]
     binary.sources += ['utils/plat_unix.cpp']
   elif binary.compiler.target.platform == 'windows':
     binary.compiler.postlink += [
       os.path.join('psapi.lib'),
+      os.path.join(builder.sourcePath, 'vendor', 'funchook', 'lib', 'funchook.lib'),
+      os.path.join(builder.sourcePath, 'vendor', 'funchook', 'lib', 'distorm.lib'),
     ]
     binary.sources += ['utils/plat_win.cpp']
 
