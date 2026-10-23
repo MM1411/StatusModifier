@@ -21,7 +21,7 @@
 #include "dbg.h"
 #include "interface.h"
 #include "plat.h"
-#include "strtools.h"
+#include "tier0/tier0_strtools.h"
 
 #include <string>
 #include <vector>
@@ -92,9 +92,9 @@ class CModule
 #endif
 
         for (auto& section : m_sections)
-            ConMsg("Section %s base: 0x%p | size: %d\n", section.m_szName.c_str(), section.m_pBase, section.m_iSize);
+            ConMsg("Section %s base: 0x%p | size: %d\n", section.m_szName.c_str(), section.m_pBase, (int)section.m_iSize);
 
-        ConMsg("Initialized module %s base: 0x%p | size: %d\n", m_pszModule, m_base, m_size);
+        ConMsg("Initialized module %s base: 0x%p | size: %d\n", m_pszModule, m_base, (int)m_size);
     }
 
     void* FindInterface(const char* name)

@@ -5,9 +5,13 @@
 #include <khook.hpp>
 #include "utlvector.h"
 #include "ehandle.h"
-#include <iserver.h>
 #include <entity2/entitysystem.h>
-#include "engine/igameeventsystem.h"
+#include "engine2/ivengineserver2.h"
+#include "engine2/igameeventsystem.h"
+#include "engine2/gamesessionconfiguration.h"
+#include "engine2/inetworkgameserver.h"
+#include "engine2/inetworkserverservice.h"
+#include "engine2/serversideclient.h"
 
 #include "igameevents.h"
 #include "CBaseEntity.h"
@@ -17,7 +21,6 @@
 #include "convar.h"
 // #include "module.h"
 #include "bitvec.h"
-#include "serversideclient.h"
 
 #ifdef _WIN32
 #define ROOTBIN "/bin/win64/"
@@ -34,10 +37,6 @@
 #endif
 
 #define MAXPLAYERS 65
-
-class GameSessionConfiguration_t
-{
-};
 
 KHook::Return<void> Hook_StartupServer_Post(INetworkServerService* pThis, const GameSessionConfiguration_t& config, ISource2WorldSession*, const char*);
 KHook::Return<bool> Hook_ClientConnect(

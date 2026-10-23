@@ -1,7 +1,5 @@
 #pragma once
 #undef snprintf
-#include "platform.h"
-#include "strtools.h"
 #include "vendor/nlohmann/json_fwd.hpp"
 #include "wchartypes.h"
 

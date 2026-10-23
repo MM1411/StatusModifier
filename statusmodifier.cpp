@@ -6,8 +6,8 @@
 #include "usermessages.pb.h"
 #include <chrono>
 #include <fstream>
-#include <inetchannel.h>
 #include <iomanip>
+#include <networksystem/inetchannel.h>
 #include <networksystem/inetworkmessages.h>
 #include <networksystem/inetworkserializer.h>
 #include <sstream>
@@ -33,12 +33,6 @@ std::vector<std::string> g_StatusArray;
 std::string g_sServerIP;
 std::chrono::time_point<std::chrono::steady_clock> g_chServerStartTime;
 PipeLayout g_HeaderLayout;
-
-CGameEntitySystem* GameEntitySystem()
-{
-    static int offset = g_GameConfig->GetOffset("GameEntitySystem");
-    return *reinterpret_cast<CGameEntitySystem**>((uintptr_t)(g_pGameResourceServiceServer) + offset);
-}
 
 // Will return null between map end & new map startup, null check if necessary!
 CGlobalVars* GetGlobals() { return g_pEngineServer2->GetServerGlobals(); }
