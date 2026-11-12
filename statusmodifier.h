@@ -6,7 +6,6 @@
 #include "funchook.h"
 #include "utlvector.h"
 #include "ehandle.h"
-#include <entity2/entitysystem.h>
 #include "engine2/ivengineserver2.h"
 #include "engine2/igameeventsystem.h"
 #include "engine2/gamesessionconfiguration.h"
